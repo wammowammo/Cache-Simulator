@@ -16,10 +16,10 @@ typedef struct{ //commandline arguments
     char *inputFile;
 } globalVars;
 
-typedef struct{
+typedef struct way{
     unsigned long tag;
     bool dirtybit;
-    way *next;
+    struct way *next;
 } way;
 
 typedef struct{
@@ -53,7 +53,9 @@ void updateCache(globalVars *vars, operations *o, csim_stats_t *stats, set **wor
         node->tag = o->tag_bit;
         node->dirtybit = false;
         workingcache[o->set_index]->size = 1;
-        if(o->operation=='S') node->dirtybit = true;
+        if(o->operation=='S'){
+            node->dirtybit = true;
+        }
     }else{
         way *node = workingcache[o->set_index]->head;
         way *prev = node;
@@ -65,13 +67,21 @@ void updateCache(globalVars *vars, operations *o, csim_stats_t *stats, set **wor
                     node->next = NULL;
                     workingcache[o->set_index]->tail->next = node;
                     workingcache[o->set_index]->tail = node;
-                    if(o->operation=='S') node->dirtybit = true;
+                    if(o->operation=='S'){
+                        node->dirtybit = true;
+                    }
                 }else if(node!=workingcache[o->set_index]->tail){
                     prev->next=node->next;
                     node->next = NULL;
                     workingcache[o->set_index]->tail->next = node;
                     workingcache[o->set_index]->tail = node;
-                    if(o->operation=='S') node->dirtybit = true;
+                    if(o->operation=='S'){
+                        node->dirtybit = true;
+                    }
+                }else {
+                    if(o->operation=='S'){
+                        node->dirtybit = true;
+                    }
                 }
                 return;
             }
@@ -79,13 +89,16 @@ void updateCache(globalVars *vars, operations *o, csim_stats_t *stats, set **wor
             node=node->next;
         }
         stats->misses+=1;
-        if(workingcache[o->set_index]->size < vars->E){
+        if((unsigned long)workingcache[o->set_index]->size < vars->E){
             way *node = calloc(sizeof(way),1);
             node->tag = o->tag_bit;
             node->dirtybit = false;
             workingcache[o->set_index]->tail->next = node;
             workingcache[o->set_index]->tail = node;
-            if(o->operation=='S') node->dirtybit = true;
+            if(o->operation=='S'){
+                node->dirtybit = true;
+            }
+            workingcache[o->set_index]->size += 1;
         }else{
             stats->evictions+=1;
             way *node = calloc(sizeof(way),1);
@@ -93,7 +106,9 @@ void updateCache(globalVars *vars, operations *o, csim_stats_t *stats, set **wor
             node->dirtybit = false;
             workingcache[o->set_index]->tail->next = node;
             workingcache[o->set_index]->tail = node;
-            if(o->operation=='S') node->dirtybit = true;
+            if(o->operation=='S'){
+                node->dirtybit = true;
+            } 
 
             way *holder = workingcache[o->set_index]->head;
             workingcache[o->set_index]->head = holder->next;
@@ -139,7 +154,7 @@ int main(int argc, char* argv[]){
 
     //initialize the cache
 
-    operations *o = malloc(sizeof(operations));
+    operations *o = calloc(1, sizeof(operations));
     FILE *fptr = fopen(vars->inputFile, "r");
     if (fptr == NULL) {
         printf("failed to open file.\n");
@@ -148,7 +163,7 @@ int main(int argc, char* argv[]){
     csim_stats_t* stats = calloc(sizeof(csim_stats_t),1);
     set **workingcache = calloc(sizeof(set*),1 << (vars->s));
 
-    for(unsigned long i=0;i < 1 << (vars->s); i++){
+    for(unsigned long i=0; i < (1 << (vars->s)); i++){
         workingcache[i] = calloc(sizeof(set),1);
     }
 
@@ -161,26 +176,30 @@ int main(int argc, char* argv[]){
         updateCache(vars, o, stats, workingcache);
     }
     //loop thru cache find how many bytes dirty
-    for(unsigned long j=0; j < 1<< (vars->s); j++){
+    for(unsigned long j=0; j < (1<< (vars->s)); j++){
         way *node = workingcache[j]->head;
         while(node!=NULL){
             if(node->dirtybit){
-                stats->dirty_bytes+= 1<< vars->b;
+                stats->dirty_bytes+= (1<< vars->b);
             }
             node=node->next;
         }
     }
 
 
-    //free cache and print results
-    for(unsigned long j=0; j < 1<< (vars->s); j++){
-        way *prev = workingcache[j]->head;
-        way *node = prev->next;
+    //print results
+    printSummary(stats);
+
+    //close file
+    fclose(fptr);
+    //free cache
+    for(unsigned long k=0; k < (1<< (vars->s)); k++){
+        way *node = workingcache[k]->head;
         while(node!=NULL){
-            free(prev);
-            prev=node;
-            node=node->next;
+            way *next = node->next;
+            free(node);
+            node=next;
         }
-        free(node);
+        free(workingcache[k]);
     }
 }
