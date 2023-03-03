@@ -115,6 +115,28 @@ static void trans_tmp(size_t M, size_t N, double A[N][M], double B[M][N],
     assert(is_transpose(M, N, A, B));
 }
 
+static void trans_other(size_t M, size_t N, double A[N][M], double B[M][N],
+double tmp[TMPCOUNT]) {
+    for (size_t i = 0; i < N; i += 8) {
+        for (size_t j = 0; j < M; j += 8) {
+            for (size_t row = i; row < i + 8; row++) {
+                for (size_t col = j; col < j + 8; col++) {
+                    if (row != col) {
+                        B[col][row] = A[row][col];
+                    }
+                }
+                for (size_t col = j; col < j + 8; col++) {
+                    if (row == col) {
+                        B[col][row] = A[row][col];
+                    }
+                }
+            }
+        }
+    }
+    assert(is_transpose(M, N, A, B));      
+}
+
+
 /**
  * @brief The solution transpose function that will be graded.
  *
@@ -125,9 +147,9 @@ static void trans_tmp(size_t M, size_t N, double A[N][M], double B[M][N],
 static void transpose_submit(size_t M, size_t N, double A[N][M], double B[M][N],
                              double tmp[TMPCOUNT]) {
     if ((M == 32 && N == 32) || (M == 1024 && M == 1024))
-        trans_basic(M, N, A, B, tmp);
+        trans_other(M, N, A, B, tmp);
     else
-        trans_tmp(M, N, A, B, tmp);
+        trans_basic(M, N, A, B, tmp);
 }
 
 /**
