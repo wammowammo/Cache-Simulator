@@ -1,4 +1,7 @@
 /*
+Cache Lab Description: A cache simulator that parses thru input from the command
+line, parses thru the trace file that it has been given in the command line
+and uses those 2 pieces of information to create a simulation of a cache.
 
 Name: William Chen
 AndrewID: wchen4
@@ -16,19 +19,19 @@ typedef struct { // commandline arguments
     char *inputFile;
 } globalVars;
 
-typedef struct way {
+typedef struct way { // blocks within each queue that act as the different ways.
     unsigned long tag;
     bool dirtybit;
     struct way *next;
 } way;
 
-typedef struct {
+typedef struct { // a queue that acts as the sets in the cache
     way *head;
     way *tail;
     int size;
 } set;
 
-typedef struct { // file arguments
+typedef struct { // arguments from the cmdline
     char operation;
     unsigned long address;
     int size;
@@ -44,9 +47,10 @@ void help() {
     -t <trace>  File name of the memory trace to process\n");
 }
 
+// updates the cache with the specific line within the trace file.
 void updateCache(globalVars *vars, operations *o, csim_stats_t *stats,
                  set **workingcache) {
-    if (workingcache[o->set_index]->size == 0) {
+    if (workingcache[o->set_index]->size == 0) { // if the set is empty.
         stats->misses += 1;
         way *node = calloc(sizeof(way), 1);
         workingcache[o->set_index]->head = node;
@@ -57,31 +61,33 @@ void updateCache(globalVars *vars, operations *o, csim_stats_t *stats,
         if (o->operation == 'S') {
             node->dirtybit = true;
         }
-    } else {
+    } else { // if the set isn't empty
         way *node = workingcache[o->set_index]->head;
         way *prev = node;
-        while (node != NULL) {
-            if (node->tag == o->tag_bit) {
+        while (node != NULL) {             // loops thru the blocks in the set
+            if (node->tag == o->tag_bit) { // if it hits
                 stats->hits += 1;
                 if (node == workingcache[o->set_index]->head &&
                     node != workingcache[o->set_index]->tail) {
+                    // if its head and size!=0
                     workingcache[o->set_index]->head = node->next;
                     node->next = NULL;
                     workingcache[o->set_index]->tail->next = node;
                     workingcache[o->set_index]->tail = node;
-                    if (o->operation == 'S') {
+                    if (o->operation == 'S') { // dirty the bit
                         node->dirtybit = true;
                     }
                 } else if (node != workingcache[o->set_index]->tail) {
+                    // if its not head or tail
                     prev->next = node->next;
                     node->next = NULL;
                     workingcache[o->set_index]->tail->next = node;
                     workingcache[o->set_index]->tail = node;
-                    if (o->operation == 'S') {
+                    if (o->operation == 'S') { // dirty the bit
                         node->dirtybit = true;
                     }
-                } else {
-                    if (o->operation == 'S') {
+                } else {                       // if its tail
+                    if (o->operation == 'S') { // dirty the bit
                         node->dirtybit = true;
                     }
                 }
@@ -90,31 +96,32 @@ void updateCache(globalVars *vars, operations *o, csim_stats_t *stats,
             prev = node;
             node = node->next;
         }
-        stats->misses += 1;
-        if ((unsigned long)workingcache[o->set_index]->size < vars->E) {
+        stats->misses += 1; // it misses
+        if ((unsigned long)workingcache[o->set_index]->size <
+            vars->E) { // cold miss
             way *node = calloc(sizeof(way), 1);
             node->tag = o->tag_bit;
             node->dirtybit = false;
             workingcache[o->set_index]->tail->next = node;
             workingcache[o->set_index]->tail = node;
-            if (o->operation == 'S') {
+            if (o->operation == 'S') { // dirty the bit
                 node->dirtybit = true;
             }
             workingcache[o->set_index]->size += 1;
-        } else {
+        } else { // conflict miss
             stats->evictions += 1;
             way *node = calloc(sizeof(way), 1);
             node->tag = o->tag_bit;
             node->dirtybit = false;
             workingcache[o->set_index]->tail->next = node;
             workingcache[o->set_index]->tail = node;
-            if (o->operation == 'S') {
+            if (o->operation == 'S') { // dirty the bit
                 node->dirtybit = true;
             }
 
             way *holder = workingcache[o->set_index]->head;
             workingcache[o->set_index]->head = holder->next;
-            if (holder->dirtybit) {
+            if (holder->dirtybit) { // dirtyevict occurs!
                 stats->dirty_evictions += 1 << vars->b;
             }
             free(holder);
@@ -155,7 +162,6 @@ int main(int argc, char *argv[]) {
     }
 
     // initialize the cache
-
     operations *o = calloc(1, sizeof(operations));
     FILE *fptr = fopen(vars->inputFile, "r");
     if (fptr == NULL) {
@@ -163,12 +169,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     csim_stats_t *stats = calloc(sizeof(csim_stats_t), 1);
-    set **workingcache = calloc(sizeof(set *), 1 << (vars->s));
 
+    // initialize the cache
+    set **workingcache = calloc(sizeof(set *), 1 << (vars->s));
     for (unsigned long i = 0; i < (1 << (vars->s)); i++) {
         workingcache[i] = calloc(sizeof(set), 1);
     }
 
+    // go thru trace file line by line
     while (fscanf(fptr, "%c %lx,%d\n", &o->operation, &o->address, &o->size) >
            0) {
         o->set_index =
@@ -195,6 +203,7 @@ int main(int argc, char *argv[]) {
 
     // close file
     fclose(fptr);
+
     // free cache
     for (unsigned long k = 0; k < (1 << (vars->s)); k++) {
         way *node = workingcache[k]->head;

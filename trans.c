@@ -115,6 +115,7 @@ static void trans_tmp(size_t M, size_t N, double A[N][M], double B[M][N],
     assert(is_transpose(M, N, A, B));
 }
 
+//faster transpose when matrix is a good size
 static void trans_other(size_t M, size_t N, double A[N][M], double B[M][N],
 double tmp[TMPCOUNT]) {
     for (size_t i = 0; i < N; i += 8) {
